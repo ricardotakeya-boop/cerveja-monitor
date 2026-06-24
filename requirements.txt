@@ -1,0 +1,7 @@
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+
+# Necessário para Zé Delivery (SPA Next.js com GraphQL via sessão):
+#   pip install playwright
+#   playwright install chromium
+# playwright>=1.44.0
