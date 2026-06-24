@@ -320,10 +320,18 @@ def buscar_suns_club():
     todos = []
     vistos_ids = set()
 
+    # Termos de busca: para "Stella Artois Pure Gold" a API VTEX não retorna nada
+    # com o nome completo, então buscamos por "Stella Artois" e o filtro downstream
+    # seleciona apenas os produtos Pure Gold.
+    TERMOS_BUSCA = {
+        "Stella Artois Pure Gold": "Stella Artois",
+    }
+
     for marca in config.MARCAS:
+        termo = TERMOS_BUSCA.get(marca, marca)
         offset = 0
         while offset < 200:
-            params = {"ft": marca, "_from": offset, "_to": offset + 49}
+            params = {"ft": termo, "_from": offset, "_to": offset + 49}
             try:
                 resp = requests.get(API_URL, params=params, headers=HEADERS, timeout=15)
                 if resp.status_code == 400:
@@ -387,11 +395,18 @@ def buscar_suns_club():
 # ---------------------------------------------------------------------------
 
 def filtrar_por_marcas(produtos, site: str):
+    # Para marcas compostas como "Stella Artois Pure Gold", verifica as palavras
+    # mais específicas (ex: "pure gold") em vez da string completa, pois os sites
+    # usam nomes mais curtos que não incluem o subtítulo completo da marca.
+    KEYWORDS = {
+        "Stella Artois Pure Gold": ["pure gold"],
+    }
     resultado = []
     for p in produtos:
         nome_lower = p["nome"].lower()
         for marca in config.MARCAS:
-            if marca.lower() in nome_lower:
+            keywords = KEYWORDS.get(marca, [marca.lower()])
+            if any(kw in nome_lower for kw in keywords):
                 resultado.append({
                     "site": site,
                     "marca_buscada": marca,
@@ -494,7 +509,13 @@ def main():
     arquivo_hoje = salvar_resultados(todos_resultados)
     comparar_com_dia_anterior(todos_resultados, arquivo_hoje)
 
-    logging.info("=== Varredura concluída ===")
+    logging.info("=== Varredura concluída — publicando relatório ===")
+
+    import subprocess, sys
+    subprocess.run(
+        [sys.executable, os.path.join(os.path.dirname(__file__), "publicar_relatorio.py")],
+        check=False,
+    )
 
 
 if __name__ == "__main__":
