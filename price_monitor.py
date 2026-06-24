@@ -324,7 +324,7 @@ def buscar_suns_club():
     # com o nome completo, então buscamos por "Stella Artois" e o filtro downstream
     # seleciona apenas os produtos Pure Gold.
     TERMOS_BUSCA = {
-        "Stella Artois Pure Gold": "Stella",
+        "Stella Artois": "Stella",
     }
 
     for marca in config.MARCAS:
@@ -395,18 +395,11 @@ def buscar_suns_club():
 # ---------------------------------------------------------------------------
 
 def filtrar_por_marcas(produtos, site: str):
-    # Para marcas compostas como "Stella Artois Pure Gold", verifica as palavras
-    # mais específicas (ex: "pure gold") em vez da string completa, pois os sites
-    # usam nomes mais curtos que não incluem o subtítulo completo da marca.
-    KEYWORDS = {
-        "Stella Artois Pure Gold": ["pure gold"],
-    }
     resultado = []
     for p in produtos:
         nome_lower = p["nome"].lower()
         for marca in config.MARCAS:
-            keywords = KEYWORDS.get(marca, [marca.lower()])
-            if any(kw in nome_lower for kw in keywords):
+            if marca.lower() in nome_lower:
                 resultado.append({
                     "site": site,
                     "marca_buscada": marca,
