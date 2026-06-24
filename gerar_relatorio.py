@@ -21,6 +21,24 @@ def carregar_ultima_varredura():
     return list(vistos.values()), data
 
 
+def carregar_grupos():
+    """Lê grupos.xlsx → {produto_lower: grupo_name}."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "grupos.xlsx")
+    if not os.path.exists(path):
+        return {}
+    import openpyxl
+    wb = openpyxl.load_workbook(path, data_only=True)
+    ws = wb.active
+    mapping = {}
+    for row in ws.iter_rows(values_only=True):
+        if not row or len(row) < 5:
+            continue
+        produto, _, _, _, grupo = row[0], row[1], row[2], row[3], row[4]
+        if produto and grupo and isinstance(produto, str) and isinstance(grupo, str):
+            mapping[produto.strip().lower()] = grupo.strip()
+    return mapping
+
+
 def preco_float(s):
     try:
         return float(str(s).replace(".", "").replace(",", "."))
@@ -29,12 +47,9 @@ def preco_float(s):
 
 
 def extrair_unidades(nome):
-    """Retorna a quantidade de unidades indicada no nome do produto."""
-    # "6x250ml", "6x330ml", "12x350ml"
     m = re.search(r'(\d+)\s*[xX]\s*\d+\s*ml', nome)
     if m:
         return int(m.group(1))
-    # "Pack 8 Latas", "Pack 12 Latas", "Pack 6 Garrafas", "Pack 12 Un."
     m = re.search(r'Pack\s+(\d+)\s+(?:Latas?|Garrafas?|Un\.)', nome, re.IGNORECASE)
     if m:
         return int(m.group(1))
@@ -42,16 +57,14 @@ def extrair_unidades(nome):
 
 
 def preco_unitario_str(preco_str, unidades):
-    """Retorna o preço por unidade formatado, ou None se já for unitário."""
     if unidades <= 1:
         return None
     val = preco_float(preco_str)
-    if val == 0:
-        return None
-    return f"{val / unidades:.2f}".replace(".", ",")
+    return f"{val / unidades:.2f}".replace(".", ",") if val else None
 
 
 def gerar_html(produtos, data):
+    grupos_map = carregar_grupos()
     sites = sorted({p["site"] for p in produtos})
     marcas_ordem = ["Heineken", "Spaten", "Michelob", "Stella Artois Pure Gold"]
     marcas = sorted({p["marca_buscada"] for p in produtos},
@@ -59,7 +72,7 @@ def gerar_html(produtos, data):
 
     data_fmt = data.strftime("%d/%m/%Y")
 
-    # ── cabeçalhos: para Sam's Club, insere coluna extra "/un" logo ao lado ──
+    # ── cabeçalhos com coluna Sams/un após Sam's Club ──
     th_cells = []
     for s in sites:
         th_cells.append(
@@ -74,38 +87,55 @@ def gerar_html(produtos, data):
             )
     th_sites = "".join(th_cells)
 
-    # ── Uma seção por marca ──────────────────────────────────────────────────
     def secao(marca):
         itens_marca = [p for p in produtos if p["marca_buscada"] == marca]
 
-        nomes_por_site = {}
+        # Agrupar por grupo: {grupo: {site: {preco, url, produto_original}}}
+        # Se o produto não tem grupo no Excel, usa o nome original como grupo
+        grupos_data = {}
         for p in itens_marca:
-            nomes_por_site.setdefault(p["produto"], {})[p["site"]] = p["preco"]
+            grupo = grupos_map.get(p["produto"].strip().lower(), p["produto"])
+            site_data = grupos_data.setdefault(grupo, {})
+            # Se já há entrada para este site neste grupo, manter o de menor preço unitário
+            novo_preco = preco_float(p["preco"])
+            novo_unid = extrair_unidades(p["produto"])
+            novo_pu = novo_preco / novo_unid if novo_unid > 0 else novo_preco
+            if p["site"] in site_data:
+                ant = site_data[p["site"]]
+                ant_pu = preco_float(ant["preco"]) / ant["unidades"] if ant["unidades"] > 0 else preco_float(ant["preco"])
+                if novo_pu >= ant_pu:
+                    continue
+            site_data[p["site"]] = {
+                "preco": p["preco"],
+                "url": p["url"],
+                "produto_original": p["produto"],
+                "unidades": novo_unid,
+            }
 
-        nomes_ord = sorted(
-            nomes_por_site.keys(),
-            key=lambda n: (-len(nomes_por_site[n]), preco_float(list(nomes_por_site[n].values())[0]))
+        # Ordenar grupos: primeiro os que aparecem em mais sites, depois por nome
+        grupos_ord = sorted(
+            grupos_data.keys(),
+            key=lambda g: (-len(grupos_data[g]), g.lower())
         )
 
         linhas = ""
-        for nome in nomes_ord:
-            precos_site = nomes_por_site[nome]
-            url_map = {p["site"]: p["url"] for p in itens_marca if p["produto"] == nome}
+        for grupo in grupos_ord:
+            site_data = grupos_data[grupo]
             cels = ""
             for site in sites:
-                if site in precos_site:
-                    url = url_map.get(site, "")
+                if site in site_data:
+                    d = site_data[site]
+                    url = d["url"]
+                    preco_str = d["preco"]
+                    unid = d["unidades"]
                     link_open  = f'<a href="{url}" target="_blank" style="color:inherit;text-decoration:none">' if url else ""
                     link_close = "</a>" if url else ""
-                    preco_str = precos_site[site]
                     cels += (
                         f'<td style="padding:9px 16px;text-align:center;border-bottom:1px solid #2e2410;'
                         f'font-weight:600;color:#f5a623;white-space:nowrap">'
                         f'{link_open}R$ {preco_str}{link_close}</td>'
                     )
-                    # coluna extra /un para Sam's Club
                     if site == SITE_SAMS:
-                        unid = extrair_unidades(nome)
                         pu = preco_unitario_str(preco_str, unid)
                         if pu:
                             cels += (
@@ -130,7 +160,7 @@ def gerar_html(produtos, data):
                         )
             linhas += (
                 f'<tr><td style="padding:9px 14px;border-bottom:1px solid #2e2410;'
-                f'font-size:13px;color:#d4b896">{nome}</td>{cels}</tr>'
+                f'font-size:13px;color:#d4b896">{grupo}</td>{cels}</tr>'
             )
 
         return f"""
@@ -152,7 +182,7 @@ def gerar_html(produtos, data):
   </div>"""
 
     secoes = "".join(secao(m) for m in marcas)
-    total  = len(produtos)
+    total  = len(grupos_map) or len(produtos)
     gerado = datetime.now().strftime("%d/%m/%Y %H:%M")
 
     return f"""<!DOCTYPE html>
@@ -174,7 +204,7 @@ def gerar_html(produtos, data):
       Monitoramento de precos</p>
     <h1 style="font-size:26px;font-weight:500;color:#f5a623;margin-bottom:6px">
       Cervejas — Comparativo por site</h1>
-    <p style="font-size:13px;color:#6a4e28">{data_fmt} &nbsp;·&nbsp; {total} produtos &nbsp;·&nbsp; {len(sites)} sites</p>
+    <p style="font-size:13px;color:#6a4e28">{data_fmt} &nbsp;·&nbsp; {len(produtos)} produtos &nbsp;·&nbsp; {len(sites)} sites</p>
   </header>
 
   {secoes}
@@ -189,6 +219,7 @@ def gerar_html(produtos, data):
 
 
 if __name__ == "__main__":
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
     produtos, data = carregar_ultima_varredura()
     html = gerar_html(produtos, data)
     with open("relatorio.html", "w", encoding="utf-8") as f:
