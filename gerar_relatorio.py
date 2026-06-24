@@ -47,10 +47,14 @@ def preco_float(s):
 
 
 def extrair_unidades(nome):
+    # "6x250ml", "8x269ml", "12x350ml"
     m = re.search(r'(\d+)\s*[xX]\s*\d+\s*ml', nome)
     if m:
         return int(m.group(1))
-    m = re.search(r'Pack\s+(\d+)\s+(?:Latas?|Garrafas?|Un\.)', nome, re.IGNORECASE)
+    # "Pack 8 Latas", "Pack 6 Garrafas", "Pack 12 Un.", "Pack 6 Long Neck",
+    # "Pack com 6 Unidades", "Pack 12 Unidades de"
+    m = re.search(r'Pack\s+(?:com\s+)?(\d+)\s+(?:Latas?|Garrafas?|Un\b|Unidades?|Long)',
+                  nome, re.IGNORECASE)
     if m:
         return int(m.group(1))
     return 1

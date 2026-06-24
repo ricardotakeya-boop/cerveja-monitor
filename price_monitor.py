@@ -324,7 +324,7 @@ def buscar_suns_club():
     # com o nome completo, então buscamos por "Stella Artois" e o filtro downstream
     # seleciona apenas os produtos Pure Gold.
     TERMOS_BUSCA = {
-        "Stella Artois Pure Gold": "Stella Artois",
+        "Stella Artois Pure Gold": "Stella",
     }
 
     for marca in config.MARCAS:
