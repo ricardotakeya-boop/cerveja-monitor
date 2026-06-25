@@ -26,9 +26,9 @@ def publicar():
     print(r.stdout.strip() or r.stderr.strip())
     r = run("git push")
     if r.returncode != 0:
-        print("Erro no push:", r.stderr)
-        sys.exit(1)
-    print("Push concluido.")
+        print("Aviso: git push falhou (credenciais indisponiveis?):", r.stderr.strip())
+    else:
+        print("Push concluido.")
 
 
 def enviar_email():
