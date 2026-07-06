@@ -120,14 +120,17 @@ def filtrar_por_marcas(produtos, site: str):
 
 def parse_sonda_html(html: str, base_url: str = "https://www.sondadelivery.com.br"):
     """
-    Extrai produtos de uma página de categoria do Sonda.
-    Procura links cujo href contenha /produto/ (cobre qualquer slug de loja).
+    Extrai produtos de uma página do Sonda (busca ou categoria).
+    Procura links cujo href contenha /delivery/produto/ e acha o preço
+    no texto do próprio link ou subindo na árvore — mas só enquanto o
+    elemento pai contiver apenas ESTE produto, para não pegar preço de
+    outro card (padrão 'De R$ X Por R$ Y': o último valor é o final).
     """
     soup = BeautifulSoup(html, "html.parser")
     produtos = []
     vistos = set()
 
-    links = soup.find_all("a", href=re.compile(r"/produto/"))
+    links = soup.find_all("a", href=re.compile(r"/delivery/produto/"))
 
     for link in links:
         href = link.get("href", "")
@@ -136,16 +139,18 @@ def parse_sonda_html(html: str, base_url: str = "https://www.sondadelivery.com.b
         if not nome or href in vistos:
             continue
 
-        preco = None
-        nivel = link
-        for _ in range(6):
-            nivel = nivel.find_parent()
-            if nivel is None:
-                break
-            texto = nivel.get_text(" ", strip=True)
-            preco = extrair_preco_final(texto)
-            if preco:
-                break
+        preco = extrair_preco_final(link.get_text(" ", strip=True))
+        if preco is None:
+            nivel = link
+            for _ in range(6):
+                nivel = nivel.find_parent()
+                if nivel is None:
+                    break
+                if len(nivel.find_all("a", href=re.compile(r"/delivery/produto/"))) > 1:
+                    break
+                preco = extrair_preco_final(nivel.get_text(" ", strip=True))
+                if preco:
+                    break
 
         if preco is None:
             continue
@@ -157,20 +162,32 @@ def parse_sonda_html(html: str, base_url: str = "https://www.sondadelivery.com.b
     return produtos
 
 
-def fetch_sonda_categoria(categoria_slug: str):
-    base = f"https://www.sondadelivery.com.br/delivery/categoria/{categoria_slug}"
+def fetch_sonda_busca(termo: str):
+    """
+    Busca produtos pelo termo (marca) na busca do site, que continua
+    funcionando sem JavaScript — a página de categoria não serve mais
+    os produtos para clientes sem JS (passou a devolver vitrine genérica).
+    Padrão de URL: /delivery/busca/<termo>/<pagina>/<itens>/<ordenacao>
+    """
+    from urllib.parse import quote
+
+    termo_url = quote(termo.lower())
+    itens_por_pagina = 18
     todos = []
     vistos_urls = set()
-    itens_por_pagina = 15
 
     for pagina in range(1, config.MAX_PAGINAS_POR_CATEGORIA + 1):
-        url = base if pagina == 1 else f"{base}/0/{pagina}/{itens_por_pagina}"
+        url = (
+            f"https://www.sondadelivery.com.br/delivery/busca/"
+            f"{termo_url}/{pagina}/{itens_por_pagina}/0"
+        )
 
         try:
             resp = requests.get(url, headers=HEADERS, timeout=15)
             resp.raise_for_status()
+            resp.encoding = "utf-8"
         except requests.RequestException as e:
-            logging.warning(f"[Sonda] Erro página {pagina} de {categoria_slug}: {e}")
+            logging.warning(f"[Sonda] Erro página {pagina} da busca '{termo}': {e}")
             break
 
         produtos = parse_sonda_html(resp.text)
@@ -183,7 +200,7 @@ def fetch_sonda_categoria(categoria_slug: str):
             vistos_urls.add(p["url"])
         todos.extend(novos)
 
-        logging.info(f"[Sonda] {categoria_slug} - página {pagina}: {len(novos)} produtos novos")
+        logging.info(f"[Sonda] busca '{termo}' - página {pagina}: {len(novos)} produtos novos")
         time.sleep(config.DELAY_ENTRE_REQUISICOES)
 
     return todos
@@ -191,15 +208,35 @@ def fetch_sonda_categoria(categoria_slug: str):
 
 def buscar_sonda():
     resultados = []
-    for categoria in config.SONDA_CATEGORIAS:
-        produtos = fetch_sonda_categoria(categoria)
-        resultados.extend(produtos)
-    return filtrar_por_marcas(resultados, site="Sonda Delivery")
+    for marca in config.MARCAS:
+        resultados.extend(fetch_sonda_busca(marca))
+
+    # Deduplica por URL (buscas de marcas diferentes podem retornar o mesmo produto)
+    vistos = set()
+    unicos = []
+    for p in resultados:
+        if p["url"] not in vistos:
+            vistos.add(p["url"])
+            unicos.append(p)
+
+    return filtrar_por_marcas(unicos, site="Sonda Delivery")
 
 
 # ---------------------------------------------------------------------------
 # SAM'S CLUB
 # ---------------------------------------------------------------------------
+
+def limpar_nome_sams(nome: str) -> str:
+    """
+    Remove o lixo que vem junto do nome no card do Sam's Club:
+      'Cerveja Heineken Pack 8 Latas 269ml CadaR$ 36,98Adicionar'
+        → 'Cerveja Heineken Pack 8 Latas 269ml Cada'
+    Corta tudo a partir do primeiro 'R$' e remove 'Adicionar' no final.
+    """
+    nome = re.split(r"R\$", nome)[0]
+    nome = re.sub(r"Adicionar\s*$", "", nome, flags=re.IGNORECASE)
+    return nome.strip()
+
 
 def parse_sams_html(html: str, base_url: str = "https://www.samsclub.com.br"):
     """
@@ -208,8 +245,8 @@ def parse_sams_html(html: str, base_url: str = "https://www.samsclub.com.br"):
 
     Estrutura observada:
       - Links de produto: /produto/<slug>-<id>
-      - Nome do produto: texto dentro do link
-      - Preço: texto próximo com padrão "R$ X,XX" (pode ter desconto: "R$ X,XX-Y%R$ Z,WW")
+      - O texto do próprio link contém nome + preço + 'Adicionar'
+        (pode ter desconto: 'R$ X,XX-Y%R$ Z,WW' → o último valor é o final)
     """
     soup = BeautifulSoup(html, "html.parser")
     produtos = []
@@ -219,23 +256,33 @@ def parse_sams_html(html: str, base_url: str = "https://www.samsclub.com.br"):
 
     for link in links:
         href = link.get("href", "")
-        nome = link.get_text(strip=True)
+        texto_link = link.get_text(" ", strip=True)
 
-        if not nome or href in vistos or len(nome) < 5:
+        if not texto_link or href in vistos or len(texto_link) < 5:
             continue
 
-        preco = None
-        nivel = link
-        for _ in range(6):
-            nivel = nivel.find_parent()
-            if nivel is None:
-                break
-            texto = nivel.get_text(" ", strip=True)
-            preco = extrair_preco_final(texto)
-            if preco:
-                break
+        # 1) Preço: primeiro tenta no texto do próprio link (contém só ESTE produto)
+        preco = extrair_preco_final(texto_link)
+
+        # 2) Se não achou, sobe na árvore — mas só enquanto o pai contiver
+        #    apenas este link de produto, para não pegar preço de outro card.
+        if preco is None:
+            nivel = link
+            for _ in range(6):
+                nivel = nivel.find_parent()
+                if nivel is None:
+                    break
+                if len(nivel.find_all("a", href=re.compile(r"/produto/"))) > 1:
+                    break
+                preco = extrair_preco_final(nivel.get_text(" ", strip=True))
+                if preco:
+                    break
 
         if preco is None:
+            continue
+
+        nome = limpar_nome_sams(texto_link)
+        if not nome:
             continue
 
         vistos.add(href)
@@ -257,6 +304,7 @@ def fetch_sams_categoria(categoria_path: str):
         try:
             resp = requests.get(url, headers=HEADERS, timeout=15)
             resp.raise_for_status()
+            resp.encoding = "utf-8"  # evita nomes como 'Ãlcool'
         except requests.RequestException as e:
             logging.warning(f"[Sam's Club] Erro página {pagina} de {categoria_path}: {e}")
             break
