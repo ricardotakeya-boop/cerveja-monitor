@@ -67,6 +67,14 @@ def preco_unitario_str(preco_str, unidades):
     return f"{val / unidades:.2f}".replace(".", ",") if val else None
 
 
+def valor_preco(item):
+    return item.get("preco_pack") or item.get("preco") or ""
+
+
+def nome_produto(item):
+    return item.get("produto") or item.get("produto_original") or item.get("nome") or ""
+
+
 def gerar_html(produtos, data):
     grupos_map = carregar_grupos()
     sites = sorted({p["site"] for p in produtos})
@@ -98,11 +106,13 @@ def gerar_html(produtos, data):
         # Se o produto não tem grupo no Excel, usa o nome original como grupo
         grupos_data = {}
         for p in itens_marca:
-            grupo = grupos_map.get(p["produto"].strip().lower(), p["produto"])
+            produto = nome_produto(p)
+            grupo = grupos_map.get(produto.strip().lower(), produto)
             site_data = grupos_data.setdefault(grupo, {})
             # Se já há entrada para este site neste grupo, manter o de menor preço unitário
-            novo_preco = preco_float(p["preco"])
-            novo_unid = extrair_unidades(p["produto"])
+            preco_str = valor_preco(p)
+            novo_preco = preco_float(preco_str)
+            novo_unid = extrair_unidades(produto)
             novo_pu = novo_preco / novo_unid if novo_unid > 0 else novo_preco
             if p["site"] in site_data:
                 ant = site_data[p["site"]]
@@ -110,9 +120,9 @@ def gerar_html(produtos, data):
                 if novo_pu >= ant_pu:
                     continue
             site_data[p["site"]] = {
-                "preco": p["preco"],
+                "preco": preco_str,
                 "url": p["url"],
-                "produto_original": p["produto"],
+                "produto_original": produto,
                 "unidades": novo_unid,
             }
 
