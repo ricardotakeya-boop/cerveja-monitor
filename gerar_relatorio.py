@@ -67,6 +67,14 @@ def preco_unitario_str(preco_str, unidades):
     return f"{val / unidades:.2f}".replace(".", ",") if val else None
 
 
+def valor_preco(item):
+    return item.get("preco_pack") or item.get("preco") or ""
+
+
+def nome_produto(item):
+    return item.get("produto") or item.get("produto_original") or item.get("nome") or ""
+
+
 def gerar_html(produtos, data):
     grupos_map = carregar_grupos()
     sites = sorted({p["site"] for p in produtos})
@@ -90,6 +98,10 @@ def gerar_html(produtos, data):
                 ';border-left:1px dashed #2e2410">Sams/un</th>'
             )
     th_sites = "".join(th_cells)
+    th_menor_preco = (
+        '<th style="padding:10px 12px;text-align:center;font-size:12px;font-weight:500;'
+        'color:#a07840;border-bottom:2px solid #2e2410;white-space:nowrap">Menor preço/un</th>'
+    )
 
     def secao(marca):
         itens_marca = [p for p in produtos if p["marca_buscada"] == marca]
@@ -98,11 +110,13 @@ def gerar_html(produtos, data):
         # Se o produto não tem grupo no Excel, usa o nome original como grupo
         grupos_data = {}
         for p in itens_marca:
-            grupo = grupos_map.get(p["produto"].strip().lower(), p["produto"])
+            produto = nome_produto(p)
+            grupo = grupos_map.get(produto.strip().lower(), produto)
             site_data = grupos_data.setdefault(grupo, {})
             # Se já há entrada para este site neste grupo, manter o de menor preço unitário
-            novo_preco = preco_float(p["preco"])
-            novo_unid = extrair_unidades(p["produto"])
+            preco_str = valor_preco(p)
+            novo_preco = preco_float(preco_str)
+            novo_unid = extrair_unidades(produto)
             novo_pu = novo_preco / novo_unid if novo_unid > 0 else novo_preco
             if p["site"] in site_data:
                 ant = site_data[p["site"]]
@@ -110,9 +124,9 @@ def gerar_html(produtos, data):
                 if novo_pu >= ant_pu:
                     continue
             site_data[p["site"]] = {
-                "preco": p["preco"],
+                "preco": preco_str,
                 "url": p["url"],
-                "produto_original": p["produto"],
+                "produto_original": produto,
                 "unidades": novo_unid,
             }
 
@@ -125,6 +139,16 @@ def gerar_html(produtos, data):
         linhas = ""
         for grupo in grupos_ord:
             site_data = grupos_data[grupo]
+
+            def pu_site(d):
+                return preco_float(d["preco"]) / d["unidades"] if d["unidades"] > 0 else preco_float(d["preco"])
+
+            site_menor, d_menor = min(site_data.items(), key=lambda kv: pu_site(kv[1]))
+            menor_preco = pu_site(d_menor)
+            menor_preco_fmt = f"R$ {menor_preco:.2f}".replace(".", ",")
+            menor_url = d_menor["url"]
+            menor_link_open  = f'<a href="{menor_url}" target="_blank" style="color:inherit;text-decoration:none">' if menor_url else ""
+            menor_link_close = "</a>" if menor_url else ""
             cels = ""
             for site in sites:
                 if site in site_data:
@@ -164,7 +188,11 @@ def gerar_html(produtos, data):
                         )
             linhas += (
                 f'<tr><td style="padding:9px 14px;border-bottom:1px solid #2e2410;'
-                f'font-size:13px;color:#d4b896">{grupo}</td>{cels}</tr>'
+                f'font-size:13px;color:#d4b896">{grupo}</td>'
+                f'<td style="padding:9px 12px;text-align:center;border-bottom:1px solid #2e2410;'
+                f'font-weight:600;color:#f5a623;white-space:nowrap">'
+                f'{menor_link_open}{menor_preco_fmt}{menor_link_close}'
+                f'<br><span style="font-size:10px;color:#6a4e28">{site_menor}</span></td>{cels}</tr>'
             )
 
         return f"""
@@ -177,6 +205,7 @@ def gerar_html(produtos, data):
           <tr style="background:#2a1c0a">
             <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:500;
                        color:#a07840;border-bottom:2px solid #2e2410">Produto</th>
+            {th_menor_preco}
             {th_sites}
           </tr>
         </thead>
