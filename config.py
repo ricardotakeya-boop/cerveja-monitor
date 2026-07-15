@@ -9,7 +9,7 @@ MARCAS = [
     "Heineken",
     "Spaten",
     "Michelob",
-    "Stella Artois Pure Gold",
+    "Stella Artois",
 ]
 
 # CEP usado para consultas que dependem de região de entrega (formato só números)

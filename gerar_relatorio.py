@@ -78,7 +78,7 @@ def nome_produto(item):
 def gerar_html(produtos, data):
     grupos_map = carregar_grupos()
     sites = sorted({p["site"] for p in produtos})
-    marcas_ordem = ["Heineken", "Spaten", "Michelob", "Stella Artois Pure Gold"]
+    marcas_ordem = ["Heineken", "Spaten", "Michelob", "Stella Artois"]
     marcas = sorted({p["marca_buscada"] for p in produtos},
                     key=lambda m: marcas_ordem.index(m) if m in marcas_ordem else 99)
 

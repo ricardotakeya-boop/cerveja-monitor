@@ -91,7 +91,10 @@ def filtrar_por_marcas(produtos, site: str):
     for p in produtos:
         nome_lower = p["nome"].lower()
         for marca in config.MARCAS:
-            if marca.lower() in nome_lower:
+            # Aceita as palavras da marca em qualquer ordem no nome do produto
+            # (ex: "Stella Artois" casa com "pure gold Stella Artois lata 269ml")
+            palavras = marca.lower().split()
+            if all(pal in nome_lower for pal in palavras):
                 qtd, volume = extrair_quantidade_e_volume(p["nome"])
                 preco_pack = p.get("preco")
                 try:
