@@ -44,6 +44,22 @@ HEADERS = {
 # UTILIDADES COMUNS
 # ---------------------------------------------------------------------------
 
+def get_com_retry(url: str, tentativas: int = 3, espera: int = 5):
+    """requests.get com novas tentativas — sites oscilam (erros 500/bloqueios breves)."""
+    ultimo_erro = None
+    for t in range(1, tentativas + 1):
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=20)
+            resp.raise_for_status()
+            return resp
+        except requests.RequestException as e:
+            ultimo_erro = e
+            if t < tentativas:
+                logging.warning(f"Tentativa {t}/{tentativas} falhou ({e}); aguardando {espera}s...")
+                time.sleep(espera)
+    raise ultimo_erro
+
+
 def extrair_preco_final(texto: str):
     """
     Extrai o preço final (com desconto, se houver) de um texto como:
@@ -186,8 +202,7 @@ def fetch_sonda_busca(termo: str):
         )
 
         try:
-            resp = requests.get(url, headers=HEADERS, timeout=15)
-            resp.raise_for_status()
+            resp = get_com_retry(url)
             resp.encoding = "utf-8"
         except requests.RequestException as e:
             logging.warning(f"[Sonda] Erro página {pagina} da busca '{termo}': {e}")
@@ -305,8 +320,7 @@ def fetch_sams_categoria(categoria_path: str):
         url = base if pagina == 1 else f"{base}?page={pagina}"
 
         try:
-            resp = requests.get(url, headers=HEADERS, timeout=15)
-            resp.raise_for_status()
+            resp = get_com_retry(url)
             resp.encoding = "utf-8"  # evita nomes como 'Ãlcool'
         except requests.RequestException as e:
             logging.warning(f"[Sam's Club] Erro página {pagina} de {categoria_path}: {e}")
@@ -334,6 +348,12 @@ def buscar_sams_club():
     for categoria in config.SAMS_CATEGORIAS:
         produtos = fetch_sams_categoria(categoria)
         resultados.extend(produtos)
+
+    if not resultados:
+        logging.warning("[Sam's Club] Nenhum produto na 1a varredura; aguardando 30s e tentando de novo...")
+        time.sleep(30)
+        for categoria in config.SAMS_CATEGORIAS:
+            resultados.extend(fetch_sams_categoria(categoria))
 
     # Deduplica por URL (a mesma cerveja pode aparecer em mais de uma categoria)
     vistos = set()
