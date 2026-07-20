@@ -391,6 +391,20 @@ CAMPOS = [
 ]
 
 
+def _cabecalho_compativel(caminho):
+    """
+    Verifica se o header do CSV existente bate com CAMPOS.
+    Se o arquivo tiver um schema antigo/diferente (ex: de uma versao anterior
+    do script rodando em paralelo), NAO devemos misturar linhas com colunas
+    diferentes no mesmo arquivo - isso corrompe a leitura no gerar_relatorio.
+    """
+    if not os.path.exists(caminho):
+        return True
+    with open(caminho, newline="", encoding="utf-8") as f:
+        primeira_linha = f.readline().strip()
+    return primeira_linha == ",".join(CAMPOS)
+
+
 def salvar_resultados(dados):
     os.makedirs(config.OUTPUT_DIR, exist_ok=True)
 
@@ -400,6 +414,18 @@ def salvar_resultados(dados):
     arquivo_historico = os.path.join(config.OUTPUT_DIR, "historico_completo.csv")
 
     for caminho in (arquivo_dia, arquivo_historico):
+        if not _cabecalho_compativel(caminho):
+            # Schema incompatível (provavelmente outra execução com versão
+            # diferente do script escreveu neste arquivo). Não misturamos:
+            # guardamos o arquivo antigo de lado e comecamos um novo, limpo.
+            backup = caminho.replace(".csv", "_schema_antigo.csv")
+            logging.warning(
+                f"Header incompativel em {caminho}; movendo para {backup} e recomecando."
+            )
+            if os.path.exists(backup):
+                os.remove(backup)
+            os.replace(caminho, backup)
+
         novo_arquivo = not os.path.exists(caminho)
         with open(caminho, "a", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=CAMPOS)
