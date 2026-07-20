@@ -4,9 +4,7 @@ Edite este arquivo para ajustar marcas monitoradas, CEP e sites ativos.
 """
 
 # Marcas/termos de busca.
-# O filtro é por substring no nome do produto, sem distinção de maiúsculas/minúsculas.
-# Ajuste os nomes se o produto aparecer com grafia diferente no site
-# (ex: "Spaten" em vez de "Spartem", "Stella Artois Pure Gold" em vez de "Stella Gold").
+# Filtro por substring no nome do produto, sem distinção de maiúsculas/minúsculas.
 MARCAS = [
     "Heineken",
     "Spaten",
@@ -20,19 +18,24 @@ CEP = "09766690"
 # Pasta onde os arquivos CSV de histórico serão salvos
 OUTPUT_DIR = "data"
 
-# Sites ativos no monitoramento.
-# Defina como True quando o site estiver implementado e testado.
+# Sites ativos no monitoramento
 SITES_ATIVOS = {
     "sonda": True,
-    "ze_delivery": False,   # requer: pip install playwright && playwright install chromium
-    "suns_club": True,      # Sam's Club (samsclub.com.br) - API VTEX, sem autenticação
+    "sams_club": True,
+    "ze_delivery": False,   # TODO: inspecionar API interna do site
 }
 
-# Categorias do Sonda Delivery a varrer em busca das marcas
+# Categorias do Sonda Delivery a varrer
 SONDA_CATEGORIAS = ["Cervejas"]
 
-# Tempo de espera (segundos) entre requisições, para não sobrecarregar o site
+# Categorias do Sam's Club a varrer
+SAMS_CATEGORIAS = [
+    "categoria/bebidas/cervejas",
+    "categoria/bebidas/cervejas/importadas",
+]
+
+# Tempo de espera (segundos) entre requisições
 DELAY_ENTRE_REQUISICOES = 1.5
 
-# Máximo de páginas a varrer por categoria (segurança contra loop infinito)
+# Máximo de páginas a varrer por categoria
 MAX_PAGINAS_POR_CATEGORIA = 15

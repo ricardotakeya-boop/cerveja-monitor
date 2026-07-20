@@ -1,0 +1,41 @@
+name: Relatorio diario de precos
+
+on:
+  schedule:
+    - cron: '0 11 * * *'   # 11:00 UTC = 08:00 em Brasilia
+  workflow_dispatch:        # permite rodar manualmente pela aba Actions
+
+permissions:
+  contents: write
+
+jobs:
+  relatorio:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt openpyxl
+
+      - name: Criar email_config.py a partir dos secrets
+        run: |
+          cat > email_config.py <<CFG
+          GMAIL_USER = "${{ secrets.GMAIL_USER }}"
+          GMAIL_APP_PASSWORD = "${{ secrets.GMAIL_APP_PASSWORD }}"
+          DESTINATARIO = "${{ secrets.DESTINATARIO }}"
+          CFG
+
+      - name: Configurar git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Rodar monitor de precos
+        run: python price_monitor.py
+
+      - name: Gerar relatorio, push e e-mail
+        run: python publicar_relatorio.py

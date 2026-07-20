@@ -10,7 +10,7 @@
 # Isso cria uma tarefa chamada "MonitorPrecosCerveja" que executa todo dia
 # às 08:00. Para alterar o horário, mude o valor de -At.
 
-$CaminhoProjeto = "C:\Users\ricar\Downloads\cerveja_monitor\cerveja_monitor"
+$CaminhoProjeto = "C:\Caminho\Para\cerveja_monitor"
 $CaminhoPython  = "python"  # ou o caminho completo do python.exe, se necessário
 
 $Acao = New-ScheduledTaskAction -Execute $CaminhoPython `
