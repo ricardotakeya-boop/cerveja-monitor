@@ -88,19 +88,19 @@ def gerar_html(produtos, data):
     th_cells = []
     for s in sites:
         th_cells.append(
-            f'<th style="padding:10px 16px;text-align:center;font-size:12px;font-weight:500;'
-            f'color:#a07840;border-bottom:2px solid #2e2410;white-space:nowrap">{s}</th>'
+            f'<th style="padding:10px 16px;text-align:center;font-size:13px;font-weight:500;'
+            f'color:#3c4650;border-bottom:2px solid #cfd6dd;white-space:nowrap">{s}</th>'
         )
         if s == SITE_SAMS:
             th_cells.append(
-                '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:400;'
-                'color:#6a4e28;border-bottom:2px solid #2e2410;white-space:nowrap'
-                ';border-left:1px dashed #2e2410">Sams/un</th>'
+                '<th style="padding:10px 12px;text-align:center;font-size:13px;font-weight:400;'
+                'color:#4a5560;border-bottom:2px solid #cfd6dd;white-space:nowrap'
+                ';border-left:1px dashed #cfd6dd">Sams/un</th>'
             )
     th_sites = "".join(th_cells)
     th_menor_preco = (
-        '<th style="padding:10px 12px;text-align:center;font-size:12px;font-weight:500;'
-        'color:#a07840;border-bottom:2px solid #2e2410;white-space:nowrap">Menor preço/un</th>'
+        '<th style="padding:10px 12px;text-align:center;font-size:13px;font-weight:500;'
+        'color:#3c4650;border-bottom:2px solid #cfd6dd;white-space:nowrap">Menor preço/un</th>'
     )
 
     def secao(marca):
@@ -159,57 +159,57 @@ def gerar_html(produtos, data):
                     link_open  = f'<a href="{url}" target="_blank" style="color:inherit;text-decoration:none">' if url else ""
                     link_close = "</a>" if url else ""
                     cels += (
-                        f'<td style="padding:9px 16px;text-align:center;border-bottom:1px solid #2e2410;'
-                        f'font-weight:600;color:#f5a623;white-space:nowrap">'
+                        f'<td style="padding:9px 16px;text-align:center;border-bottom:1px solid #cfd6dd;'
+                        f'font-weight:600;color:#0b5fae;white-space:nowrap">'
                         f'{link_open}R$ {preco_str}{link_close}</td>'
                     )
                     if site == SITE_SAMS:
                         pu = preco_unitario_str(preco_str, unid)
                         if pu:
                             cels += (
-                                f'<td style="padding:9px 10px;text-align:center;border-bottom:1px solid #2e2410;'
-                                f'border-left:1px dashed #2e2410;color:#c8832a;font-size:12px;white-space:nowrap">'
-                                f'R$ {pu}<br><span style="font-size:10px;color:#6a4e28">({unid} un)</span></td>'
+                                f'<td style="padding:9px 10px;text-align:center;border-bottom:1px solid #cfd6dd;'
+                                f'border-left:1px dashed #cfd6dd;color:#0b5fae;font-size:13px;white-space:nowrap">'
+                                f'R$ {pu}<br><span style="font-size:12px;color:#4a5560">({unid} un)</span></td>'
                             )
                         else:
                             cels += (
-                                '<td style="padding:9px 10px;text-align:center;border-bottom:1px solid #2e2410;'
-                                'border-left:1px dashed #2e2410;color:#4a3520;font-size:11px">unit.</td>'
+                                '<td style="padding:9px 10px;text-align:center;border-bottom:1px solid #cfd6dd;'
+                                'border-left:1px dashed #cfd6dd;color:#707b87;font-size:13px">unit.</td>'
                             )
                 else:
                     cels += (
-                        '<td style="padding:9px 16px;text-align:center;border-bottom:1px solid #2e2410;'
-                        'color:#4a3520;font-size:12px">—</td>'
+                        '<td style="padding:9px 16px;text-align:center;border-bottom:1px solid #cfd6dd;'
+                        'color:#707b87;font-size:13px">—</td>'
                     )
                     if site == SITE_SAMS:
                         cels += (
-                            '<td style="padding:9px 10px;text-align:center;border-bottom:1px solid #2e2410;'
-                            'border-left:1px dashed #2e2410;color:#4a3520;font-size:12px">—</td>'
+                            '<td style="padding:9px 10px;text-align:center;border-bottom:1px solid #cfd6dd;'
+                            'border-left:1px dashed #cfd6dd;color:#707b87;font-size:13px">—</td>'
                         )
             linhas += (
-                f'<tr><td style="padding:9px 14px;border-bottom:1px solid #2e2410;'
-                f'font-size:13px;color:#d4b896">{grupo}</td>'
-                f'<td style="padding:9px 12px;text-align:center;border-bottom:1px solid #2e2410;'
-                f'font-weight:600;color:#f5a623;white-space:nowrap">'
+                f'<tr><td style="padding:9px 14px;border-bottom:1px solid #cfd6dd;'
+                f'font-size:14px;font-weight:500;color:#1a1a1a">{grupo}</td>'
+                f'<td style="padding:9px 12px;text-align:center;border-bottom:1px solid #cfd6dd;'
+                f'font-weight:600;color:#0b5fae;white-space:nowrap">'
                 f'{menor_link_open}{menor_preco_fmt}{menor_link_close}'
-                f'<br><span style="font-size:10px;color:#6a4e28">{site_menor}</span></td>{cels}</tr>'
+                f'<br><span style="font-size:12px;color:#4a5560">{site_menor}</span></td>{cels}</tr>'
             )
 
         return f"""
   <div style="margin-bottom:36px">
-    <h2 style="margin:0 0 10px;color:#f5a623;font-size:16px;font-weight:500;
-               border-left:3px solid #f5a623;padding-left:10px">{marca}</h2>
-    <div style="overflow-x:auto;border-radius:8px;border:1px solid #2e2410">
+    <h2 style="margin:0 0 10px;color:#0b5fae;font-size:16px;font-weight:500;
+               border-left:3px solid #0b5fae;padding-left:10px">{marca}</h2>
+    <div style="overflow-x:auto;border-radius:8px;border:1px solid #cfd6dd">
       <table style="width:100%;border-collapse:collapse;font-family:inherit">
         <thead>
-          <tr style="background:#2a1c0a">
-            <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:500;
-                       color:#a07840;border-bottom:2px solid #2e2410">Produto</th>
+          <tr style="background:#eef2f7">
+            <th style="padding:10px 14px;text-align:left;font-size:13px;font-weight:500;
+                       color:#3c4650;border-bottom:2px solid #cfd6dd">Produto</th>
             {th_menor_preco}
             {th_sites}
           </tr>
         </thead>
-        <tbody style="background:#1e1408">{linhas}</tbody>
+        <tbody style="background:#ffffff">{linhas}</tbody>
       </table>
     </div>
   </div>"""
@@ -226,24 +226,24 @@ def gerar_html(produtos, data):
 <title>Monitor de Precos de Cerveja - {data_fmt}</title>
 <style>
   *{{box-sizing:border-box;margin:0;padding:0}}
-  body{{background:#120d04;color:#e8d5b0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}}
+  body{{background:#ffffff;color:#1a1a1a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}}
 </style>
 </head>
 <body>
 <div style="max-width:1080px;margin:0 auto;padding:32px 20px">
 
-  <header style="margin-bottom:36px;border-bottom:1px solid #2e2410;padding-bottom:20px">
-    <p style="font-size:11px;color:#a07840;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">
+  <header style="margin-bottom:36px;border-bottom:1px solid #cfd6dd;padding-bottom:20px">
+    <p style="font-size:13px;color:#3c4650;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">
       Monitoramento de precos</p>
-    <h1 style="font-size:26px;font-weight:500;color:#f5a623;margin-bottom:6px">
+    <h1 style="font-size:26px;font-weight:500;color:#0b5fae;margin-bottom:6px">
       Cervejas — Comparativo por site</h1>
-    <p style="font-size:13px;color:#6a4e28">{data_fmt} &nbsp;·&nbsp; {len(produtos)} produtos &nbsp;·&nbsp; {len(sites)} sites</p>
+    <p style="font-size:14px;color:#4a5560">{data_fmt} &nbsp;·&nbsp; {len(produtos)} produtos &nbsp;·&nbsp; {len(sites)} sites</p>
   </header>
 
   {secoes}
 
-  <footer style="margin-top:36px;border-top:1px solid #2e2410;padding-top:14px;
-                 font-size:11px;color:#4a3520;text-align:center">
+  <footer style="margin-top:36px;border-top:1px solid #cfd6dd;padding-top:14px;
+                 font-size:13px;color:#707b87;text-align:center">
     Gerado por cerveja_monitor em {gerado}
   </footer>
 </div>
