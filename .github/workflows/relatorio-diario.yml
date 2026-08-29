@@ -2,7 +2,14 @@ name: Relatorio diario de precos
 
 on:
   schedule:
-    - cron: '0 11 * * *'   # 11:00 UTC = 08:00 em Brasilia
+    # O agendamento gratuito do GitHub Actions nao garante horario exato -
+    # pode atrasar ou ser pulado em dias de alta demanda. Por isso tentamos
+    # varias vezes ao longo da manha; a trava abaixo evita e-mail duplicado
+    # caso mais de uma tentativa rode com sucesso no mesmo dia.
+    - cron: '0 11 * * *'   # 08:00 Brasilia
+    - cron: '0 12 * * *'   # 09:00 Brasilia
+    - cron: '0 13 * * *'   # 10:00 Brasilia
+    - cron: '0 15 * * *'   # 12:00 Brasilia
   workflow_dispatch:        # permite rodar manualmente pela aba Actions
 
 permissions:
@@ -14,14 +21,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verificar se ja rodou hoje
+        id: guarda
+        run: |
+          HOJE=$(date +%Y%m%d)
+          if [ -f "data/precos_${HOJE}.csv" ]; then
+            echo "Ja existe relatorio de hoje ($HOJE); pulando execucao."
+            echo "ja_rodou=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ja_rodou=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-python@v5
+        if: steps.guarda.outputs.ja_rodou == 'false'
         with:
           python-version: '3.12'
 
       - name: Instalar dependencias
+        if: steps.guarda.outputs.ja_rodou == 'false'
         run: pip install -r requirements.txt openpyxl
 
       - name: Criar email_config.py a partir dos secrets
+        if: steps.guarda.outputs.ja_rodou == 'false'
         run: |
           cat > email_config.py <<CFG
           GMAIL_USER = "${{ secrets.GMAIL_USER }}"
@@ -30,12 +51,15 @@ jobs:
           CFG
 
       - name: Configurar git
+        if: steps.guarda.outputs.ja_rodou == 'false'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Rodar monitor de precos
+        if: steps.guarda.outputs.ja_rodou == 'false'
         run: python price_monitor.py
 
       - name: Gerar relatorio, push e e-mail
+        if: steps.guarda.outputs.ja_rodou == 'false'
         run: python publicar_relatorio.py
