@@ -90,7 +90,19 @@ def _preco_subindo_arvore(link, padrao_href):
     return None, None
 
 
-def extrair_cards(html: str, padrao_href: str, base_url: str, limpar_nome=None):
+def limpar_nome(texto: str) -> str:
+    """
+    Tira do nome o que o card agrega: preco, desconto e botao.
+      "Cerveja Heineken Pack 8 Latas 269ml CadaR$ 36,98Adicionar"
+        -> "Cerveja Heineken Pack 8 Latas 269ml Cada"
+    No Sonda o nome ja costuma vir limpo; aqui a funcao e um no-op.
+    """
+    nome = re.split(r"R\$", texto)[0]
+    nome = re.sub(r"\b(Adicionar|Comprar|Esgotado)\s*$", "", nome, flags=re.IGNORECASE)
+    return nome.strip(" -–—|")
+
+
+def extrair_cards(html: str, padrao_href: str, base_url: str):
     soup = BeautifulSoup(html, "html.parser")
     produtos, vistos = [], set()
 
@@ -106,7 +118,7 @@ def extrair_cards(html: str, padrao_href: str, base_url: str, limpar_nome=None):
         if final is None:
             continue
 
-        nome = limpar_nome(texto) if limpar_nome else texto
+        nome = limpar_nome(texto)
         if not nome:
             continue
 
@@ -155,12 +167,6 @@ def buscar_sonda():
 # SAM'S CLUB
 # ---------------------------------------------------------------------------
 
-def limpar_nome_sams(texto: str) -> str:
-    nome = re.split(r"R\$", texto)[0]
-    nome = re.sub(r"Adicionar\s*$", "", nome, flags=re.IGNORECASE)
-    return nome.strip()
-
-
 def buscar_sams():
     base = "https://www.samsclub.com.br"
     achados, vistos = [], set()
@@ -175,7 +181,7 @@ def buscar_sams():
                     log.warning("[Sam's] %s p%s: %s", categoria, pagina, e)
                     break
 
-                produtos = extrair_cards(resp.text, r"/produto/", base, limpar_nome_sams)
+                produtos = extrair_cards(resp.text, r"/produto/", base)
                 novos = [p for p in produtos if p["url"] not in vistos]
                 if not novos:
                     break
