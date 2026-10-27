@@ -33,19 +33,31 @@ def normalizar(texto: str) -> str:
 # O QUE NAO E CERVEJA
 # ---------------------------------------------------------------------------
 
-# Aparelhos e acessorios que aparecem nas mesmas categorias/buscas.
-PALAVRAS_NAO_CERVEJA = [
-    "chopeira", "beertender", "copo", "taca", "caneca", "balde", "abridor",
-    "cooler", "camiseta", "kit presente", "porta-copo", "bolsa termica",
-    "dispenser", "growler", "refil co2", "cilindro",
+# Nunca sao cerveja, apareca a palavra onde aparecer.
+NUNCA_CERVEJA = [
+    "beertender", "abridor", "camiseta", "kit presente", "porta-copo",
+    "bolsa termica", "dispenser", "growler", "refil co2", "cilindro",
+    "cartao presente",
 ]
+
+# Excluem apenas quando sao o proprio produto, isto e, no inicio do nome.
+# "Chopeira Eletrica Heineken..." e aparelho;
+# "Barril Spaten 6L - exclusivo para Chopeiras PerfectDraft" e cerveja.
+ACESSORIO_SE_NO_INICIO = [
+    "chopeira", "copo", "taca", "caneca", "balde", "cooler",
+]
+
+_INICIO = 30   # caracteres considerados "inicio do nome"
 
 
 def eh_cerveja(nome: str) -> bool:
     n = normalizar(nome)
     if not n:
         return False
-    return not any(p in n for p in PALAVRAS_NAO_CERVEJA)
+    if any(p in n for p in NUNCA_CERVEJA):
+        return False
+    inicio = n[:_INICIO]
+    return not any(p in inicio for p in ACESSORIO_SE_NO_INICIO)
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +93,10 @@ def detectar_marca(nome: str):
 
 # Ordem importa: "pure gold" antes de "gold"; "zero" antes de "tradicional".
 VERSOES = [
-    ("Zero álcool", ["zero alcool", "0,0%", "0.0%", "sem alcool", "shot zero", "zero %"]),
+    # "Heineken Zero 330ml" e "Heineken Zero Sleek" tambem sao sem alcool:
+    # por isso "zero" solto entra aqui, antes de qualquer outra versao.
+    ("Zero álcool", ["zero alcool", "0,0%", "0.0%", "sem alcool", "shot zero",
+                     "zero %", "zero", "0%"]),
     ("Ultra",       ["ultra"]),
     ("Pure Gold",   ["pure gold"]),
     ("Gold",        ["gold"]),

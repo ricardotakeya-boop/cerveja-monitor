@@ -11,6 +11,7 @@ import logging
 import os
 import re
 import time
+import uuid
 from datetime import datetime
 
 import requests
@@ -203,10 +204,95 @@ def buscar_sams():
 # ZE DELIVERY
 # ---------------------------------------------------------------------------
 
+ZE_API = "https://api.ze.delivery/public-api"
+
+ZE_QUERY = (
+    "query newSearch($searchTerm: String!, $limit: Int) { "
+    "newSearch(searchTerm: $searchTerm) { items(limit: $limit) { "
+    "id displayName price { min max } "
+    "applicableDiscount { presentedDiscountValue finalValue } "
+    "brand { displayName } category { displayName } } } }"
+)
+
+
 def buscar_ze():
-    """Desligado por padrao: ver config_v2.MOTIVO_SITE_INATIVO."""
-    log.info("[Ze Delivery] desativado nesta execucao")
-    return []
+    """
+    Catalogo do Ze Delivery via API GraphQL publica.
+
+    O preco depende do endereco de entrega, que o backend guarda atrelado ao
+    'x-visitorid'. Esse id sai do secret ZE_VISITOR_ID; sem ele a loja e
+    pulada e o relatorio diz o porque, em vez de omitir a loja calado.
+    Nao usa cookie: 'x-session-id' pode ser novo a cada execucao.
+    """
+    visitor = os.environ.get("ZE_VISITOR_ID", "").strip()
+    if not visitor:
+        raise RuntimeError(
+            "ZE_VISITOR_ID nao configurado (secret do repositorio). "
+            "Sem ele a API do Ze nao sabe o endereco de entrega e nao devolve preco."
+        )
+
+    headers = {
+        "accept": "*/*",
+        "content-type": "application/json",
+        "x-visitorid": visitor,
+        "x-request-origin": "WEB",
+        "x-service-branch": "default",
+        "x-session-id": str(uuid.uuid4()),
+        "x-session-id-amplitude": str(int(time.time() * 1000)),
+        "User-Agent": HEADERS["User-Agent"],
+    }
+
+    achados, vistos = [], set()
+    for termo in cfg.TERMOS_BUSCA:
+        payload = {
+            "operationName": "newSearch",
+            "query": ZE_QUERY,
+            "variables": {"searchTerm": termo, "limit": 40},
+        }
+        try:
+            r = requests.post(ZE_API, json=payload, headers=headers, timeout=cfg.TIMEOUT)
+            r.raise_for_status()
+            dados = r.json()
+        except (requests.RequestException, ValueError) as e:
+            log.warning("[Ze] '%s': %s", termo, e)
+            continue
+
+        if dados.get("errors"):
+            log.warning("[Ze] '%s': %s", termo, str(dados["errors"][:1])[:200])
+            continue
+
+        itens = ((dados.get("data") or {}).get("newSearch") or {}).get("items") or []
+        for item in itens:
+            categoria = ((item.get("category") or {}).get("displayName") or "")
+            if "cerveja" not in categoria.lower():
+                continue
+
+            preco = (item.get("price") or {}).get("min")
+            if not preco:
+                continue
+
+            de = None
+            desconto = item.get("applicableDiscount") or {}
+            final = desconto.get("finalValue")
+            if final and final < preco:
+                de, preco = preco, final
+
+            ident = item.get("id")
+            if ident in vistos:
+                continue
+            vistos.add(ident)
+
+            achados.append({
+                "nome": item.get("displayName") or "",
+                "url": f"https://www.ze.delivery/produtos/produto/{ident}",
+                "preco": f"{float(preco):.2f}".replace(".", ","),
+                "preco_de": f"{float(de):.2f}".replace(".", ",") if de else None,
+            })
+
+        log.info("[Ze] '%s': %s itens", termo, len(itens))
+        time.sleep(cfg.DELAY_ENTRE_REQUISICOES)
+
+    return achados
 
 
 # ---------------------------------------------------------------------------
@@ -292,9 +378,17 @@ def coletar():
 
     if cfg.SITES_ATIVOS.get("ze_delivery"):
         try:
-            ofertas += enriquecer(buscar_ze(), "Ze Delivery")
+            encontrados = enriquecer(buscar_ze(), "Ze Delivery")
+            ofertas += encontrados
+            if not encontrados:
+                falhas["Ze Delivery"] = (
+                    "A API respondeu, mas nenhuma cerveja das marcas monitoradas "
+                    "voltou com preco. O endereco atrelado ao ZE_VISITOR_ID pode "
+                    "ter saido da area de entrega."
+                )
         except Exception as e:
             falhas["Ze Delivery"] = f"{type(e).__name__}: {e}"
+            log.error("Ze falhou: %s", e)
     else:
         falhas["Ze Delivery"] = cfg.MOTIVO_SITE_INATIVO["ze_delivery"]
 

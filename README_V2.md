@@ -7,6 +7,7 @@ computador. Substitui o fluxo v1 (`relatorio-diario.yml`, desativado).
 
 | | v1 | v2 |
 |---|---|---|
+| Lojas | Sonda + Sam's | Sonda + Sam's + **Ze Delivery** |
 | Marcas | 4 | 9 (Heineken, Spaten, Michelob, Stella Artois, Beck's, Amstel, Colorado, Therezopolis, Patagonia) |
 | Criterio de decisao | preco do pack | **preco por litro** |
 | `Lata 8x350ml` | lido como **1** unidade (preco/un 8x maior) | lido como 8 unidades |
@@ -34,7 +35,7 @@ computador. Substitui o fluxo v1 (`relatorio-diario.yml`, desativado).
 |---|---|
 | `cerveja_parse.py` | le o nome do produto: marca, versao, unidades, volume, precos |
 | `config_v2.py` | marcas, CEP, sites ativos, caminhos |
-| `coleta_v2.py` | scraping do Sonda e do Sam's Club + enriquecimento |
+| `coleta_v2.py` | Sonda e Sam's (scraping) + Ze Delivery (API) + enriquecimento |
 | `relatorio_v2.py` | monta o HTML do e-mail |
 | `executar_v2.py` | orquestra: coleta -> CSV -> HTML -> commit -> e-mail |
 | `.github/workflows/cervejas-v2.yml` | agendamento diario |
@@ -62,10 +63,30 @@ Credenciais: variaveis `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `DESTINATARIO`
 
 ## Ze Delivery
 
-Desligado em `config_v2.SITES_ATIVOS`. Exige geolocalizacao e API autenticada,
-o que o GitHub Actions nao consegue sem navegador real. O relatorio informa
-isso na secao "Limitacoes" em vez de simplesmente omitir a loja. A tarefa do
-Claude, que roda no Chrome do computador, continua cobrindo esse site.
+Funciona, via a API GraphQL publica do site (`POST https://api.ze.delivery/public-api`,
+operacao `newSearch`). Nao precisa de login nem de cookie.
+
+O detalhe que trava quem tenta: **o preco depende do endereco de entrega**, e o
+endereco nao vai no corpo da requisicao — fica guardado no backend atrelado ao
+header `x-visitorid`. Com o visitorId certo, a API devolve o preco da regiao;
+sem ele, devolve vitrine vazia. Os demais headers (`x-session-id`,
+`x-session-id-amplitude`) podem ser gerados a cada execucao.
+
+Por isso o id vai num secret, `ZE_VISITOR_ID`, e nao no codigo: ele identifica
+um visitante e o endereco associado, o que nao deve ficar num repositorio.
+
+### Como obter ou renovar o ZE_VISITOR_ID
+
+1. Abra `https://www.ze.delivery` no navegador e defina o endereco de entrega.
+2. Abra o DevTools (F12) → aba Network → filtre por `public-api`.
+3. Clique em qualquer requisicao e veja os Request Headers.
+4. Copie o valor de `x-visitorid` (formato UUID).
+5. No GitHub: Settings → Secrets and variables → Actions → New repository secret,
+   nome `ZE_VISITOR_ID`.
+
+Se o id expirar, o Ze volta a aparecer em "Limitacoes" com a mensagem de que a
+API respondeu mas nao veio preco — sinal de refazer os passos acima. As outras
+duas lojas seguem normalmente nesse meio tempo.
 
 ## Agendamento
 

@@ -5,6 +5,8 @@ A v2 segue o escopo da tarefa do Claude: 9 marcas, preco por litro como
 criterio principal, historico com minimas de 7 e 30 dias e relatorio completo.
 """
 
+import os
+
 # --- Marcas monitoradas (termos usados na busca dos sites) -------------------
 # O reconhecimento fino de marca/versao fica em cerveja_parse.py; aqui ficam
 # apenas os termos de BUSCA enviados aos sites.
@@ -39,20 +41,18 @@ CEP = "09760-280"          # Sao Bernardo do Campo, SP
 CEP_DIGITOS = "09760280"
 
 # --- Sites -------------------------------------------------------------------
-# ze_delivery exige geolocalizacao e API autenticada; sem navegador real o
-# GitHub Actions nao consegue consultar. Fica desligado e o relatorio informa
-# isso na secao "Limitacoes" em vez de omitir silenciosamente.
+# O Ze liga sozinho quando o secret ZE_VISITOR_ID existe: esse id carrega o
+# endereco de entrega, sem o qual a API nao devolve preco.
 SITES_ATIVOS = {
     "sonda": True,
     "sams_club": True,
-    "ze_delivery": False,
+    "ze_delivery": bool(os.environ.get("ZE_VISITOR_ID", "").strip()),
 }
 
 MOTIVO_SITE_INATIVO = {
     "ze_delivery": (
-        "Ze Delivery exige geolocalizacao e API autenticada; nao e acessivel "
-        "a partir do GitHub Actions sem navegador real. Continua coberto pela "
-        "tarefa do Claude que roda no Chrome do computador."
+        "Secret ZE_VISITOR_ID nao configurado no repositorio. Esse id guarda o "
+        "endereco de entrega no backend do Ze; sem ele a API nao devolve preco."
     ),
 }
 

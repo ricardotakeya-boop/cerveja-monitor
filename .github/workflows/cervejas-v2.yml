@@ -72,6 +72,10 @@ jobs:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           DESTINATARIO: ${{ secrets.DESTINATARIO }}
+          # Identificador de visitante do Ze Delivery: e ele que carrega o
+          # endereco de entrega. Sem o secret, o Ze e pulado e o relatorio
+          # explica o motivo em "Limitacoes".
+          ZE_VISITOR_ID: ${{ secrets.ZE_VISITOR_ID }}
           TZ: America/Sao_Paulo
         run: python executar_v2.py
 
