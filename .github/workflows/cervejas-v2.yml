@@ -1,0 +1,85 @@
+name: Relatorio de cervejas (v2)
+
+# Substitui relatorio-diario.yml (v1, desativado).
+# Diferencas: 9 marcas, preco por litro, minimas de 7/30 dias, minima
+# historica e relatorio completo por secoes.
+
+on:
+  schedule:
+    # O agendamento gratuito do GitHub Actions atrasa ou pula execucoes em
+    # horario de pico. Tentamos varias vezes pela manha; a trava "ja rodou
+    # hoje" garante um unico e-mail por dia.
+    - cron: '0 12 * * *'   # 09:00 Brasilia
+    - cron: '0 13 * * *'   # 10:00 Brasilia
+    - cron: '30 14 * * *'  # 11:30 Brasilia
+    - cron: '0 17 * * *'   # 14:00 Brasilia
+  workflow_dispatch:
+    inputs:
+      forcar:
+        description: 'Rodar mesmo que ja tenha rodado hoje'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cervejas-v2
+  cancel-in-progress: false
+
+jobs:
+  relatorio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ja rodou hoje?
+        id: guarda
+        run: |
+          HOJE=$(TZ=America/Sao_Paulo date +%d/%m/%Y)
+          if [ "${{ inputs.forcar }}" = "true" ]; then
+            echo "Execucao forcada."
+            echo "pular=false" >> "$GITHUB_OUTPUT"
+          elif [ -f data/historico_v2.csv ] && cut -d';' -f1 data/historico_v2.csv | grep -qx "$HOJE"; then
+            echo "Ja existe coleta de $HOJE; nada a fazer."
+            echo "pular=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pular=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.guarda.outputs.pular == 'false'
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Instalar dependencias
+        if: steps.guarda.outputs.pular == 'false'
+        run: pip install -r requirements.txt
+
+      - name: Configurar git
+        if: steps.guarda.outputs.pular == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Coletar, gerar relatorio, publicar e enviar e-mail
+        if: steps.guarda.outputs.pular == 'false'
+        env:
+          # Lidos direto do ambiente: nenhum segredo e gravado em disco.
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          DESTINATARIO: ${{ secrets.DESTINATARIO }}
+          TZ: America/Sao_Paulo
+        run: python executar_v2.py
+
+      - name: Guardar relatorio como artefato
+        if: steps.guarda.outputs.pular == 'false' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-cervejas
+          path: relatorio_cervejas.html
+          retention-days: 14
+          if-no-files-found: ignore
